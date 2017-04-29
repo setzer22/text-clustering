@@ -7,5 +7,5 @@
   [& args]
   (println "Hello, World!"))
 
-(freeling/analyze :text "The quick brown fox jumped over the lazy dog" :level "dep")
+;(freeling/analyze :text "The quick brown fox jumped over the lazy dog" :level "dep")
 

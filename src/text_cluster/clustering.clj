@@ -49,27 +49,39 @@
 (defn branch? [tree]
   (:left tree))
 
-;TODO: It fails for 1-element clusters!
 (defn cut-tree
-  "Cuts the output of a hierarchical clustering in k components"
-  [tree k]
-  (loop [components      (prmap/priority-map tree 0)]
-    (let [tree                 (first (first components))
-          {:keys [left right]} tree]
-      (cond
-        (or (>= (count components) k) (empty? components)) (map first (take k components))
-        :else
-        (recur (cond-> components
-                 true            (dissoc tree)
-                 (branch? left)  (assoc left (+ (:distance tree) (:distance left)))
-                 (branch? right) (assoc right (+ (:distance tree) (:distance right)))))))))
+  "Cuts the output of a hierarchical clustering in components for
+   which their separation is bigger than d. This kind of cut violates
+   the scale-invariance property."
+  [tree d]
+  (let [top first, pop rest, push conj
+        trees (loop [components [tree]
+                     selected []]
+                (let [tree (top components)
+                      {:keys [left right distance]} tree]
+                  (cond
+                    (empty? components) selected
+                    (> distance d) (recur (cond-> components
+                                            true (pop)
+                                            (branch? left) (push left)
+                                            (branch? right) (push right))
+                                          (cond-> selected
+                                            (not (branch? left)) (conj left)
+                                            (not (branch? right)) (conj right)))
+                    (<= distance d) (recur (pop components)
+                                           (conj selected tree)))))]
+    (mapv (fn [tree] (->> (tree-seq branch? #(vector (:left %) (:right %)) tree)
+                         (remove branch?)
+                         (into []))) trees)))
 
-(comment (cut-tree
-  (->Tree
-   (->Tree :a :b 0.1)
-   (->Tree :c :d 10)
-   0)
-  2))
+(comment
+  (= (cut-tree
+     (->Tree
+      (->Tree :a :b 10)
+      (->Tree :c (->Tree :d :e 0.1) 5)
+      10)
+     0.2)
+    [[:c] [:d :e] [:a] [:b]]))
 
 (defn medoid-partition
   "Classifies each element to its closest medoid"
@@ -129,13 +141,18 @@
                    (for [i wns, j wns] [i j]))
         wn->lemma (into {} (map #(vector (:wn %) (:lemma %)) words))
 
-        clustering (hierarchical-clustering wns distances)]
+        clustering (hierarchical-clustering wns distances)
+        ;;TODO: @MagicNumber 0.5
+        cut (cut-tree clustering 0.7)
+        consolidated (k-medoids wns distances (map #(compute-medoid % distances) cut))]
     (write-png "/tmp/dendogram.png"
                (dendogram/->img
                 (transform (walker string?) wn->lemma clustering)))
     (clojure.java.shell/sh "xdg-open" "/tmp/dendogram.png")
-    clustering))
+    (transform (walker string?) wn->lemma consolidated)))
 
 (comment (cluster-words-in-text
           " Legend speaks of a beast Three hundred miles from its tip to its tail None have seen it, yet all know its name Like the ark of the covenant, or the holy grail We set out on a quest In search of the lair, where the creature doth dwell On a ransom to bring back its head Our journey would take us to the depths of hell His eyes shine like the rays of morning His mouth is as a burning flame Leviathan Cresting the waves Leading us all to the grave Leviathan Slaying all foes Who dare to oppose Tearing bodies limb from limb Eviscerating on a whim The skies turned to black The oceans fell dead, no winds dared to blow Then out the darkness with a thunderous roar Leviathan rose up from the depths below Cannons fired, and swords tasted blood As the beast turned to strike with rage in its eyes From its mouth came a great ball of flame It was then we all knew, that the end was nigh His eyes shine like the rays of morning His mouth is as a burning flame Leviathan Cresting the waves Leading us all to the grave Leviathan Slaying all foes Who dare to oppose Tearing bodies limb from limb Eviscerating on a whim His eyes shine like the rays of morning His mouth is as a burning flame His nostrils seethe with fumes of brimstone He is the beast that can't be tamed Leviathan Cresting the waves Leading us all to the grave Leviathan Slaying all foes Who dare to oppose Leviathan Cresting the waves Leading us all to the grave Leviathan Slaying all foes Who dare to oppose Tearing bodies limb from limb Eviscerating on a whim "
-          "en"))
+          "en")
+
+         )

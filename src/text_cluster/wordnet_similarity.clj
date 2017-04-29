@@ -6,7 +6,7 @@
 
 (defonce semdb (delay (edu.upc.freeling.SemanticDB. "/usr/local/share/freeling/en/semdb.dat")))
 
-(defn sense-info [wn]
+(defn sense-info' [wn]
   (let [sense-info (.getSenseInfo (force semdb) wn)]
     {:wn wn
      :parents (StringList->seq (.getParents sense-info))
@@ -15,6 +15,10 @@
      :tonto (StringList->seq (.getTonto sense-info))
      :sumo (.getSumo sense-info)
      :cyc (.getCyc sense-info)}))
+
+;; NOTE: Memoization greatly improves performance for our use-case, since we lookup
+;;       the same sense several times for a clustering
+(def sense-info (memoize sense-info'))
 
 (defn hiperonimy-tree [wn]
   (let [info (sense-info wn)]
