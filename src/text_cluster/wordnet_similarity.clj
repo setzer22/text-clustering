@@ -4,7 +4,10 @@
             [text-cluster.utils :refer :all]
             [clojure.set :as set]))
 
-(defonce semdb (delay (edu.upc.freeling.SemanticDB. "/usr/local/share/freeling/en/semdb.dat")))
+(defonce semdb (delay (edu.upc.freeling.SemanticDB.
+                       (str (or (System/getenv "FREELING_HOME")
+                                "/usr/local/freeling/")
+                            "/en/semdb.dat"))))
 
 (defn sense-info' [wn]
   (let [sense-info (.getSenseInfo (force semdb) wn)]
