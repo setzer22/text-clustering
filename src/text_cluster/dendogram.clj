@@ -23,7 +23,7 @@
 ;; OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 ;; SOFTWARE.
 
-(ns text-cluster.dendrogram
+(ns text-cluster.dendogram
   (:require
    [clojure.string :refer [join]]
    [helpmate.svg :refer [svg g text polyline]]

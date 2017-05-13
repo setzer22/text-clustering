@@ -7,7 +7,7 @@
 (defn extract-words-from-text [string-text lang]
   (let [text (freeling/analyze :text string-text :lang lang :level "senses")]
     (select [:json :paragraphs ALL :sentences ALL :tokens ALL
-             #(#{"noun" "verb"} (:pos %)) #(:wn %)
+             #(#{"noun"} (:pos %)) #(:wn %)
              #(not= (:lemma %) "be")
              #(and (:wn %) (seq (:parents (similarity/sense-info (:wn %)))))] text)))
 

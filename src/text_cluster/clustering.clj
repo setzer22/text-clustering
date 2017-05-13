@@ -1,14 +1,14 @@
 (ns text-cluster.clustering
-  (:require [clojure.set :as set]
+  (:require [text-cluster.dendogram :as dendogram]
+            [clustering.data-viz.image :refer [write-png]]
+            [clojure.set :as set]
             [clojure.data.priority-map :as prmap]
             [com.rpl.specter :refer :all]
             [clojure.math.combinatorics :as combo]
             [incanter.core :refer [$=]]
             [text-cluster.text-preprocess :as preprocess]
             [text-cluster.wordnet-similarity :as similarity]
-            [clustering.core.hierarchical :as hc]
-            [text-cluster.dendrogram :as dendogram]
-            [clustering.data-viz.image :refer [write-png]]))
+            [clustering.core.hierarchical :as hc]))
 
 (defrecord Tree [left right distance])
 
@@ -121,7 +121,7 @@
                medoids)))))
 
 (comment
-  "An example of why breaking ties between medoids is important"
+  "An example of why breaking ties deterministically between medoids is important"
   (k-medoids
    [:a :b :c :d :e]
    {:a {:a 0 :b 2 :c 1 :d 1 :e 4}
@@ -131,28 +131,73 @@
     :e {:a 4 :b 2 :c 1 :d 2 :e 0}}
    [:a :e]))
 
-(defn cluster-words-in-text [text lang]
-  (let [words (preprocess/extract-words-from-text text lang)
-        wns (distinct (map :wn words))
-        distances (reduce
-                   (fn [similarities [i j]]
-                     (assoc-in similarities [i j] (- 1 (similarity/wu-palmer i j))))
-                   {}
-                   (for [i wns, j wns] [i j]))
-        wn->lemma (into {} (map #(vector (:wn %) (:lemma %)) words))
+(defn distances->csv
+  [distances wn->lemma]
+  (let [words (keys distances)
+        disp-words (map wn->lemma words)
+        matrix (map vec (partition
+                          (count words)
+                          (for [word (sort words), word' (sort words)]
+                            (format "%.4f" (get-in distances [word word'])))))
+        matrix (into [(vec disp-words)] matrix)]
+    (clojure.string/join
+     "\n"
+     (for [row matrix]
+       (clojure.string/join "," row)))))
 
-        clustering (hierarchical-clustering wns distances)
-        ;;TODO: @MagicNumber 0.5
-        cut (cut-tree clustering 0.7)
-        consolidated (k-medoids wns distances (map #(compute-medoid % distances) cut))]
-    (write-png "/tmp/dendogram.png"
-               (dendogram/->img
-                (transform (walker string?) wn->lemma clustering)))
-    (clojure.java.shell/sh "xdg-open" "/tmp/dendogram.png")
-    (transform (walker string?) wn->lemma consolidated)))
 
-(comment (cluster-words-in-text
-          " Legend speaks of a beast Three hundred miles from its tip to its tail None have seen it, yet all know its name Like the ark of the covenant, or the holy grail We set out on a quest In search of the lair, where the creature doth dwell On a ransom to bring back its head Our journey would take us to the depths of hell His eyes shine like the rays of morning His mouth is as a burning flame Leviathan Cresting the waves Leading us all to the grave Leviathan Slaying all foes Who dare to oppose Tearing bodies limb from limb Eviscerating on a whim The skies turned to black The oceans fell dead, no winds dared to blow Then out the darkness with a thunderous roar Leviathan rose up from the depths below Cannons fired, and swords tasted blood As the beast turned to strike with rage in its eyes From its mouth came a great ball of flame It was then we all knew, that the end was nigh His eyes shine like the rays of morning His mouth is as a burning flame Leviathan Cresting the waves Leading us all to the grave Leviathan Slaying all foes Who dare to oppose Tearing bodies limb from limb Eviscerating on a whim His eyes shine like the rays of morning His mouth is as a burning flame His nostrils seethe with fumes of brimstone He is the beast that can't be tamed Leviathan Cresting the waves Leading us all to the grave Leviathan Slaying all foes Who dare to oppose Leviathan Cresting the waves Leading us all to the grave Leviathan Slaying all foes Who dare to oppose Tearing bodies limb from limb Eviscerating on a whim "
-          "en")
+(defn clustering->TeX
+  "Prints the result of the consolidation clustering as a LaTeX table"
+  [clustering]
+  (let [clustering (transform (walker string?) ;; Escape underscores for LaTeX output
+                              #(clojure.string/replace % "_" "\\_")
+                              clustering)
+        count-single (count (filter #(== (count %) 1) (vals clustering)))
+        max-length (max
+                    count-single
+                    (apply max (map count (vals clustering))))]
+    (with-out-str
+      (print "\\begin{tabular}{")
+      (print "| c |" (clojure.string/join " " (repeat max-length "c")) "|")
+      (println "}")
+      (println "\\hline")
+      (doseq [[[medoid cluster] i] (map vector (filter #(> (-> % second count) 1) (sort-by #(-> % second count -) clustering)) (range))]
+       (print "\\textbf{Cluster" i "}" "&" medoid "&"
+                (clojure.string/join
+                 " & "
+                 (take (dec max-length) (concat (remove #(= medoid %) cluster) (repeat "")))))
+       (println "\\\\")
+       (println "\\hline"))
+      (when (pos? count-single)
+        (println "\\textbf{Single words} & "
+                 (clojure.string/join
+                  " & "
+                  (take max-length
+                        (concat (map first (filter #(== (-> % second count) 1) clustering)) (repeat ""))))
+                 "\\\\ \n \\hline"))
+      (println "\\end{tabular}"))))
 
-         )
+(defn cluster-words-in-text
+  ([text lang] (cluster-words-in-text text lang "/tmp/dendogram.png" "/tmp/distances.csv" "/tmp/table.tex"))
+  ([text lang dendogram-path distances-path table-path]
+   (let [words (preprocess/extract-words-from-text text lang)
+         wns (distinct (map :wn words))
+         distances (reduce
+                    (fn [similarities [i j]]
+                      (assoc-in similarities [i j] (- 1 (similarity/wu-palmer i j))))
+                    {}
+                    (for [i wns, j wns] [i j]))
+         wn->lemma (into {} (map #(vector (:wn %) (:lemma %)) words))
+         clustering (hierarchical-clustering wns distances)
+         ;;TODO: @MagicNumber
+         cut (cut-tree clustering 0.7)
+         consolidated (k-medoids wns distances (map #(compute-medoid % distances) cut))
+         printable (transform (walker string?) wn->lemma consolidated)]
+     (write-png dendogram-path
+                (dendogram/->img
+                 (transform (walker string?) wn->lemma clustering)))
+     (spit distances-path (distances->csv distances wn->lemma))
+     (spit table-path (clustering->TeX printable))
+     printable)))
+
+
