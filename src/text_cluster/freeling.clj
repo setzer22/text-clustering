@@ -9,7 +9,7 @@
 
 (def ^:dynamic freeling-dir-path
   "The freeling data installation path"
-  "/usr/local/share/freeling/")
+  (System/getenv "FREELING_HOME"))
 
 (defonce analyzers (atom {}))
 
@@ -60,7 +60,7 @@
     (catch java.lang.UnsatisfiedLinkError e
       (throw (Exception.
               (str "The textserver is down and no local intsall of freeling "
-                   "was found on java.library.path. Please fix either of those errors.")))))
+                   "was found on java.library.path. Please fix either of those errors:\n" (.getMessage e))))))
   (if (not (get @analyzers lang)) (swap! analyzers assoc lang (mk-analyzer lang)))
   (let [analyzer (get @analyzers lang)
         doc (Document.)]
