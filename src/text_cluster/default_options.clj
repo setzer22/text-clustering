@@ -1,6 +1,6 @@
 (ns text-cluster.default-options
   (:require [text-cluster.utils :refer :all])
-  (:import [edu.upc.freeling Tagset Dictionary Analyzer Summarizer ConfigOptions InvokeOptions Document OutputJson OutputXml AnalysisLevel TaggerAlgorithm DependencyParser WSDAlgorithm ForceSelectStrategy]))
+  (:import [edu.upc.freeling ConfigOptions InvokeOptions]))
 
 (def textserver:level->freeling:level
   #(or ({"semgraph" AnalysisLevel/SEMGRAPH

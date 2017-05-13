@@ -4,7 +4,7 @@
             [clojure.string :as string]
             [text-cluster.utils :refer :all]
             [text-cluster.default-options :as options])
-  (:import [edu.upc.freeling Tagset Dictionary Analyzer Summarizer ConfigOptions InvokeOptions Document OutputJson OutputXml AnalysisLevel TaggerAlgorithm DependencyParser WSDAlgorithm ForceSelectStrategy]))
+  (:import [edu.upc.freeling Analyzer Document OutputJson OutputXml]))
 
 
 (def ^:dynamic freeling-dir-path
