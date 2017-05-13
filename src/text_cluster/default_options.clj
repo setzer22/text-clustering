@@ -1,6 +1,6 @@
 (ns text-cluster.default-options
   (:require [text-cluster.utils :refer :all])
-  (:import [edu.upc.freeling ConfigOptions InvokeOptions]))
+  (:import [edu.upc.freeling ConfigOptions InvokeOptions AnalysisLevel]))
 
 (def textserver:level->freeling:level
   #(or ({"semgraph" AnalysisLevel/SEMGRAPH
